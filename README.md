@@ -18,8 +18,8 @@ Recent work has shown deep learning can accelerate the prediction of physical dy
 1. Models/: 
    * Non-Equ/, Magnitude-Equ/, Rotation-Equ/, Uniform-Equ/
      1. model.py: pytorch implementation of models.
-     2. train.py: data loaders, train epoch, validation epoch, test epoch functions.
-     3.  run_model.py: Scripts to train models.
+     2. utils.py: data loaders, train epoch, validation epoch, test epoch functions.
+     3. run_model.py: Scripts to train models.
    * Scale-Equ/
      1. model2d_scalar.py.py: Scale equivariant models for scalar fields.
      2. model_vector.py: Scale equivariant models for vector fields.
