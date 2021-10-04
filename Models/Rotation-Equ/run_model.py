@@ -12,7 +12,7 @@ from train import train_epoch, eval_epoch,Dataset, get_lr
 warnings.filterwarnings("ignore")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-name = "ResNet_3"
+name = "ResNet_Rot"
 min_mse = 1
 input_length = 20
 learning_rate = 0.001
