@@ -16,17 +16,17 @@ Recent work has shown deep learning can accelerate the prediction of physical dy
 
 ## Description
 1. models/: 
-   * pytorch implementation of models.
+   1. pytorch implementation of equivariant models.
 
 2. utils/:
    1. utils.py: training functions for non-equ, um-equ, mag-equ, rot-equ models.
    2. utils_scale.py: training functions for scale-equ models
      
-2. Evaluation/:
+2. evaluation/:
    1. Evaluation.py: functions for computing RMSE and Energy Spectrum Errors.
    2. radialProfile.py: FFT functions for calculating energy spectrum.
 
-3. Data Samples/: samples of Rayleigh–Bénard Convection data and Ocean Current data.
+3. data_samples/: samples of Rayleigh–Bénard Convection data and Ocean Current data.
 
 
 ## Cite
