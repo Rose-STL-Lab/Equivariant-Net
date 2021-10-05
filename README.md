@@ -10,7 +10,7 @@ Recent work has shown deep learning can accelerate the prediction of physical dy
 
 ## Requirement 
 * python 3.7
-* pytorch 10.1
+* pytorch >= 1.0.1
 * matplotlib
 * [e2cnn](https://github.com/QUVA-Lab/e2cnn)
 
