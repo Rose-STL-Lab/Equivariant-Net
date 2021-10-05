@@ -9,7 +9,7 @@ Recent work has shown deep learning can accelerate the prediction of physical dy
 * [Ocean Current DataSet](https://resources.marine.copernicus.eu/?option=com_csw&view=details&product_id=GLOBAL_ANALYSIS_FORECAST_PHY_001_024)
 
 ## Requirement 
-* python 3.6
+* python 3.7
 * pytorch 10.1
 * matplotlib
 * [e2cnn](https://github.com/QUVA-Lab/e2cnn)
@@ -22,11 +22,10 @@ Recent work has shown deep learning can accelerate the prediction of physical dy
    1. utils.py: training functions for non-equ, um-equ, mag-equ, rot-equ models.
    2. utils_scale.py: training functions for scale-equ models
      
-2. evaluation/:
+3. evaluation/:
    1. Evaluation.py: functions for computing RMSE and Energy Spectrum Errors.
    2. radialProfile.py: FFT functions for calculating energy spectrum.
 
-3. data_samples/: samples of Rayleigh–Bénard Convection data and Ocean Current data.
 
 
 ## Cite
