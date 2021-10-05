@@ -15,17 +15,12 @@ Recent work has shown deep learning can accelerate the prediction of physical dy
 * [e2cnn](https://github.com/QUVA-Lab/e2cnn)
 
 ## Description
-1. Models/: 
-   * Non-Equ/, Magnitude-Equ/, Rotation-Equ/, Uniform-Equ/
-     1. model.py: pytorch implementation of models.
-     2. utils.py: data loaders, train epoch, validation epoch, test epoch functions.
-     3. run_model.py: Scripts to train models.
-   * Scale-Equ/
-     1. model2d_scalar.py.py: Scale equivariant models for scalar fields.
-     2. model_vector.py: Scale equivariant models for vector fields.
-     3. train_scalar.py: training functions for scalar fields.
-     4. train_vector.py: training functions for vector fields.
-     5. run_model.py: Scripts to train models.
+1. models/: 
+   * pytorch implementation of models.
+
+2. utils/:
+   1. utils.py: training functions for non-equ, um-equ, mag-equ, rot-equ models.
+   2. utils_scale.py: training functions for scale-equ models
      
 2. Evaluation/:
    1. Evaluation.py: functions for computing RMSE and Energy Spectrum Errors.
