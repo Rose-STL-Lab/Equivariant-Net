@@ -15,10 +15,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ###### Hyperparameter ######
 save_name = "ResNet_UM"
 n_epochs = 1000
-learning_rate = 0.001
-batch_size = 2
+learning_rate = 0.001 # 0.0005 for mag_equ resnet; 0.0001 for scale_equ resnet
+batch_size = 16
 input_length = 24
-train_output_length = 3
+train_output_length = 3 # 4 for all Unets
 test_output_length = 10
 lr_decay = 0.9
 ###########################
