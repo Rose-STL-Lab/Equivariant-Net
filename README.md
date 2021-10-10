@@ -11,21 +11,16 @@ Recent work has shown deep learning can accelerate the prediction of physical dy
 ## Requirement 
 * python 3.7
 * pytorch >= 1.0.1
-* matplotlib
+* numpy
+* scipy
 * [e2cnn](https://github.com/QUVA-Lab/e2cnn)
 
 ## Description
-1. models/: 
-   1. pytorch implementation of equivariant models.
+1. models: pytorch implementation of equivariant models.
 
-2. utils/:
-   1. utils.py: training functions for non-equ, um-equ, mag-equ, rot-equ models.
-   2. utils_scale.py: training functions for scale-equ models
+2. utils: training functions and dataset classes.
      
-3. evaluation/:
-   1. Evaluation.py: functions for computing RMSE and Energy Spectrum Errors.
-   2. radialProfile.py: FFT functions for calculating energy spectrum.
-
+3. evaluation: functions for computing RMSE and Energy Spectrum Errors.
 
 
 ## Cite
