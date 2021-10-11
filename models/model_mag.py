@@ -1,5 +1,5 @@
 """
-Uniform Motion Equivariant ResNet and U-net
+Magnitude Equivariant ResNet and U-net
 """
 
 import torch
