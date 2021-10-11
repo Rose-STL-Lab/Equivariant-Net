@@ -1,4 +1,7 @@
-########################## Uniform Motion Equivariant Neural Nets ####################################
+"""
+Uniform Motion Equivariant ResNet and U-net
+"""
+
 import torch
 import numpy as np
 import torch.nn as nn
@@ -34,38 +37,39 @@ class um_conv2d(nn.Module):
         self.deconv = deconv
       
     
-    def unfold(self, xx):
+    def unfold(self, x):
         """
         Extracts sliding local blocks from a batched input tensor.
         """
         if not self.deconv:
-            xx = F.pad(xx, ((self.pad_size, self.pad_size)*2), mode='replicate')
+            x = F.pad(x, ((self.pad_size, self.pad_size)*2), mode='replicate')
             
         # Unfold input tensor
-        out = F.unfold(xx, kernel_size = self.kernel_size)
+        out = F.unfold(x, kernel_size = self.kernel_size)
         out = out.reshape(out.shape[0], self.input_channels, self.kernel_size, self.kernel_size, out.shape[-1])
         
-        ## Batch_size x (in_channels x kernel_size x kernel_size) x 64 x 64
+        # Batch_size x (in_channels x kernel_size x kernel_size) x 64 x 64
         out = out.reshape(out.shape[0], self.input_channels, self.kernel_size, self.kernel_size, int(np.sqrt(out.shape[-1])), int(np.sqrt(out.shape[-1])))
+        
         if self.stride > 1:
             return out[:,:,:,:,::self.stride,::self.stride]
         return out
     
-    def subtract_mean(self, xx):
+    def subtract_mean(self, x):
         """
         Shifts the mean of input sliding local blocks to zero.
         """   
         # Calculates and Subtracts mean velocity 
-        out = xx.reshape(xx.shape[0], self.input_channels//self.um_dim, self.um_dim, self.kernel_size, self.kernel_size, xx.shape[-2], xx.shape[-1])
+        out = x.reshape(x.shape[0], self.input_channels//self.um_dim, self.um_dim, self.kernel_size, self.kernel_size, x.shape[-2], x.shape[-1])
         avgs = out.mean((1,3,4), keepdim=True)
         out -= avgs
         
-        # Fold the input
-        out = out.reshape(out.shape[0], self.input_channels, self.kernel_size, self.kernel_size, xx.shape[-2], xx.shape[-1]).transpose(2,4).transpose(-1,-2)
-        out = out.reshape(out.shape[0], self.input_channels, xx.shape[-2]*self.kernel_size, xx.shape[-1], self.kernel_size)
+        # Reshape the input
+        out = out.reshape(out.shape[0], self.input_channels, self.kernel_size, self.kernel_size, x.shape[-2], x.shape[-1]).transpose(2,4).transpose(-1,-2)
+        out = out.reshape(out.shape[0], self.input_channels, x.shape[-2]*self.kernel_size, x.shape[-1], self.kernel_size)
         
-        ## Batch_size x in_channels x (64 x kernel_size) x (64 x kernel_size)
-        out = out.reshape(out.shape[0], self.input_channels, xx.shape[-2]*self.kernel_size, xx.shape[-1]*self.kernel_size)
+        # Batch_size x in_channels x (64 x kernel_size) x (64 x kernel_size)
+        out = out.reshape(out.shape[0], self.input_channels, x.shape[-2]*self.kernel_size, x.shape[-1]*self.kernel_size)
         return out, avgs.squeeze(3).squeeze(3)
     
     
@@ -78,13 +82,12 @@ class um_conv2d(nn.Module):
         out = out.reshape(out.shape[0], -1, out.shape[-2], out.shape[-1])
         return out
     
-    def forward(self, xx, shift_back = True):
-        xx = self.unfold(xx)
-        xx, avgs = self.subtract_mean(xx)
-        out = self.conv2d(xx)
+    def forward(self, x, shift_back = True):
+        x = self.unfold(x)
+        x, avgs = self.subtract_mean(x)
+        out = self.conv2d(x)
         
         if self.activation:
-            #out = self.batchnorm(out)
             out = F.leaky_relu(out)
             
         if shift_back:
@@ -101,21 +104,22 @@ class um_deconv2d(nn.Module):
         self.conv2d = um_conv2d(input_channels = input_channels, output_channels = output_channels, kernel_size = 4, um_dim = 2,
                              activation = True, stride = 1, deconv = True)
     
-    def pad(self, xx):
+    def pad(self, x):
         # Add padding inside of the input tensor
         # To preserve uniform motion equivariance, we use the input tensor itself as padding instead of zero.
         # Because the padding zero would change the original mean of input sliding blocks.
-        pad_xx = torch.zeros(xx.shape[0], xx.shape[1], xx.shape[2]*2, xx.shape[3]*2)
-        pad_xx[:,:,::2,::2].copy_(xx)
-        pad_xx[:,:,1::2,::2].copy_(xx)
-        pad_xx[:,:,::2,1::2].copy_(xx)
-        pad_xx[:,:,1::2,1::2].copy_(xx)
-        pad_xx = F.pad(pad_xx, (1,2,1,2), mode='replicate')
-        return pad_xx
+        pad_x = torch.zeros(x.shape[0], x.shape[1], x.shape[2]*2, x.shape[3]*2)
+        pad_x[:,:,::2,::2].copy_(x)
+        pad_x[:,:,1::2,::2].copy_(x)
+        pad_x[:,:,::2,1::2].copy_(x)
+        pad_x[:,:,1::2,1::2].copy_(x)
+        pad_x = F.pad(pad_x, (1,2,1,2), mode='replicate')
+        return pad_x
     
-    def forward(self, xx):
-        out = self.pad(xx).to(device)
+    def forward(self, x):
+        out = self.pad(x).to(device)
         return self.conv2d(out)
+
 
 # Uniform Motion Equivariant U_net.
 class Unet_UM(nn.Module):
@@ -167,12 +171,12 @@ class um_resblock(nn.Module):
         self.input_channels = input_channels
         self.hidden_dim = hidden_dim
         
-    def forward(self, xx):
-        out = self.layer1(xx)  
+    def forward(self, x):
+        out = self.layer1(x)  
         if self.input_channels == self.hidden_dim:
-            out = self.layer2(out, False) + xx
+            out = self.layer2(out, False) + x
         else:
-            out = self.layer2(out, False) + self.upscale(xx)
+            out = self.layer2(out, False) + self.upscale(x)
              
         return out
 
@@ -186,6 +190,6 @@ class ResNet_UM(nn.Module):
         layers += [um_conv2d(512, output_channels, kernel_size = kernel_size, activation = False)]
         self.model = nn.Sequential(*layers)
              
-    def forward(self, xx):
-        out = self.model(xx)
+    def forward(self, x):
+        out = self.model(x)
         return out

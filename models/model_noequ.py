@@ -1,4 +1,7 @@
-########################## None Equivariant Neural Nets ####################################
+"""
+Non-equivariant ResNet and U-net
+"""
+
 import torch
 import torch.nn as nn
 import torch.optim as optim

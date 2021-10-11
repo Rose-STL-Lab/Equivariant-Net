@@ -1,4 +1,7 @@
-########################## Scale Equivariant Neural Nets ####################################
+"""
+Scale Equivariant ResNet and U-net
+"""
+
 import torch
 import numpy as np
 import torch.nn as nn
@@ -7,22 +10,30 @@ import math
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class scale_conv2d(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, l = 3, sout = 5, activation = True, stride = 1, deconv = False):
+    def __init__(self, 
+                 in_channels, 
+                 out_channels, 
+                 kernel_size, 
+                 l = 3, # Number of levels of input
+                 sout = 7, # Number of scales we model in the convolution layer. 
+                 activation = True, # If add the activation function at the end
+                 stride = 1,
+                 deconv = False):
         super(scale_conv2d, self).__init__()
         self.out_channels= out_channels
         self.in_channels = in_channels
-        self.l = l
-        self.sout = sout
+        self.l = l 
+        self.sout = sout 
         self.activation = activation
         self.kernel_size = kernel_size
         self.bias = nn.Parameter(torch.Tensor(out_channels))
-        weight_shape = (out_channels, l, 2, in_channels//2, kernel_size, kernel_size)
+        weight_shape = (out_channels, l, 2, in_channels//2, kernel_size, kernel_size) # The shape of scale equivariant conv2d kernels
         self.stdv = math.sqrt(1. / (kernel_size * kernel_size * in_channels * l))
         self.weights = nn.Parameter(torch.Tensor(*weight_shape))
         self.reset_parameters()
         self.stride = stride
         self.deconv = deconv
-        #self.batchnorm = nn.BatchNorm2d(out_channels)# affine=False
+    
         
     def reset_parameters(self):
         self.weights.data.uniform_(-self.stdv, self.stdv)
@@ -30,16 +41,21 @@ class scale_conv2d(nn.Module):
             self.bias.data.fill_(0)
             
     def shrink_kernel(self, kernel, up_scale):
+        """
+        Shrink the kernel via boundary padding and grid sampling. 
+        """
         up_scale = torch.tensor(up_scale).float()
+        # boundary padding based on the scaling law
         pad_in = (torch.ceil(up_scale**2).int())*((kernel.shape[2]-1)//2)
         pad_h = (torch.ceil(up_scale).int())*((kernel.shape[3]-1)//2)
         pad_w = (torch.ceil(up_scale).int())*((kernel.shape[4]-1)//2)
         padded_kernel = F.pad(kernel, (pad_w, pad_w, pad_h, pad_h, pad_in, pad_in))
         delta = up_scale%1
+        
         if delta == 0:
             shrink_factor = 1
         else:
-            # shrink_factor for coordinates if the kernel is over shrunk.
+            # shrink_factor for coordinates.
             shrink_factor = (((kernel.shape[4]-1))/(padded_kernel.shape[-1]-1)*(up_scale+1))
             
             # Adjustment to deal with weird filtering on the grid sample function.
@@ -59,9 +75,12 @@ class scale_conv2d(nn.Module):
         return new_kernel
     
     def dilate_kernel(self, kernel, dilation):
+        """
+        upscale the kernel via inside padding and grid sampling. 
+        """
         if dilation == 0:
             return kernel 
-
+        # inside padding based on the scaling law
         dilation = torch.tensor(dilation).float()
         delta = dilation%1
 
@@ -76,23 +95,22 @@ class scale_conv2d(nn.Module):
 
         new_kernel = torch.zeros(kernel.shape[0], kernel.shape[1], new_in, new_h, new_w)
         new_kernel[:,:,::(d_in+1),::(d_h+1), ::(d_w+1)] = kernel
-        shrink_factor = 1
+        dilate_factor = 1
         
-        # shrink coordinates if the kernel is over dilated.
-        if delta != 0:
-            new_kernel = F.pad(new_kernel, ((kernel.shape[4]-1)//2, (kernel.shape[4]-1)//2)*3)
+        new_kernel = F.pad(new_kernel, ((kernel.shape[4]-1)//2, (kernel.shape[4]-1)//2)*3)
 
-            shrink_factor = (new_kernel.shape[-1] - 1 - (kernel.shape[4]-1)*(delta))/(new_kernel.shape[-1] - 1) 
-            grid = torch.meshgrid(torch.linspace(-1, 1, new_in)*(shrink_factor**2), 
-                                  torch.linspace(-1, 1, new_h)*shrink_factor, 
-                                  torch.linspace(-1, 1, new_w)*shrink_factor)
+        dilate_factor = (new_kernel.shape[-1] - 1 - (kernel.shape[4]-1)*(delta))/(new_kernel.shape[-1] - 1) 
 
-            grid = torch.cat([grid[2].unsqueeze(0).unsqueeze(-1), 
-                              grid[1].unsqueeze(0).unsqueeze(-1), 
-                              grid[0].unsqueeze(0).unsqueeze(-1)], dim = -1).repeat(kernel.shape[0],1,1,1,1)
+        grid = torch.meshgrid(torch.linspace(-1, 1, new_in)*(dilate_factor**2), 
+                              torch.linspace(-1, 1, new_h)*dilate_factor, 
+                              torch.linspace(-1, 1, new_w)*dilate_factor)
 
-            new_kernel = F.grid_sample(new_kernel, grid)         
-            #new_kernel = new_kernel/new_kernel.sum()*kernel.sum()
+        grid = torch.cat([grid[2].unsqueeze(0).unsqueeze(-1), 
+                          grid[1].unsqueeze(0).unsqueeze(-1), 
+                          grid[0].unsqueeze(0).unsqueeze(-1)], dim = -1).repeat(kernel.shape[0],1,1,1,1)
+
+        new_kernel = F.grid_sample(new_kernel, grid)         
+            
         return new_kernel[:,:,-kernel.shape[2]:]
     
     
@@ -111,15 +129,12 @@ class scale_conv2d(nn.Module):
                 new_kernel = w.to(device)
     
             new_kernel = new_kernel.reshape(self.out_channels, (t-s)*self.in_channels, new_kernel.shape[-2], new_kernel.shape[-1])
+        
             if self.deconv:
-                #print(inp.shape)
-                if (s - self.sout//2) > 0:
-                    
+                if (s - self.sout//2) > 0:          
                     conv = F.conv2d(F.pad(inp, (1,2,1,2)), new_kernel)
                 else:
                     conv = F.conv2d(inp, new_kernel)
-                #print(new_kernel.shape)
-                #print(conv.shape)
             else:
                 conv = F.conv2d(inp, new_kernel, padding = ((new_kernel.shape[-2]-1)//2, (new_kernel.shape[-1]-1)//2), stride = self.stride)
             

@@ -1,4 +1,7 @@
-########################## Uniform Motion Equivariant Neural Nets ####################################
+"""
+Uniform Motion Equivariant ResNet and U-net
+"""
+
 import torch
 import numpy as np
 import torch.nn as nn
@@ -30,35 +33,36 @@ class mag_conv2d(nn.Module):
         self.batchnorm = nn.BatchNorm2d(output_channels)
         self.deconv = deconv
         
-    def unfold(self, xx):
+    def unfold(self, x):
         """
         Extracts sliding local blocks from a batched input tensor.
         """
         if not self.deconv:
-            xx = F.pad(xx, ((self.pad_size, self.pad_size)*2), mode = 'replicate')
-        out = F.unfold(xx, kernel_size = self.kernel_size)
+            x = F.pad(x, ((self.pad_size, self.pad_size)*2), mode = 'replicate')
+        out = F.unfold(x, kernel_size = self.kernel_size)
         out = out.reshape(out.shape[0], self.input_channels, self.kernel_size, self.kernel_size, out.shape[-1])
+        
         ## Batch_size x (in_channels x kernel_size x kernel_size) x 64 x 64
         out = out.reshape(out.shape[0], self.input_channels, self.kernel_size, self.kernel_size, int(np.sqrt(out.shape[-1])), int(np.sqrt(out.shape[-1])))      
         if self.stride > 1:
             return out[:,:,:,:,::self.stride,::self.stride]
         return out
     
-    def transform(self, xx):
+    def transform(self, x):
         """
         Max-Min Normalization on each sliding local block.
         """   
         # Calculates the max-min of input sliding local blocks 
-        out = xx.reshape(xx.shape[0], self.input_channels//self.um_dim, self.um_dim, self.kernel_size, self.kernel_size, xx.shape[-2], xx.shape[-1])
+        out = x.reshape(x.shape[0], self.input_channels//self.um_dim, self.um_dim, self.kernel_size, self.kernel_size, x.shape[-2], x.shape[-1])
         stds = (out.max(1).values.unsqueeze(1).max(3).values.unsqueeze(3).max(4).values.unsqueeze(4) - 
                 out.min(1).values.unsqueeze(1).min(3).values.unsqueeze(3).min(4).values.unsqueeze(4))
         
         out = out /(stds + 10e-7) 
-        out = out.reshape(out.shape[0], self.input_channels, self.kernel_size, self.kernel_size, xx.shape[-2], xx.shape[-1]).transpose(2,4).transpose(-1,-2)
-        out = out.reshape(out.shape[0], self.input_channels, xx.shape[-2]*self.kernel_size, xx.shape[-1], self.kernel_size)
+        out = out.reshape(out.shape[0], self.input_channels, self.kernel_size, self.kernel_size, x.shape[-2], x.shape[-1]).transpose(2,4).transpose(-1,-2)
+        out = out.reshape(out.shape[0], self.input_channels, x.shape[-2]*self.kernel_size, x.shape[-1], self.kernel_size)
         
         ## Batch_size x in_channels x (64 x kernel_size) x (64 x kernel_size)
-        out = out.reshape(out.shape[0], self.input_channels, xx.shape[-2]*self.kernel_size, xx.shape[-1]*self.kernel_size)
+        out = out.reshape(out.shape[0], self.input_channels, x.shape[-2]*self.kernel_size, x.shape[-1]*self.kernel_size)
         return out, stds.squeeze(3).squeeze(3)
     
     
@@ -71,10 +75,10 @@ class mag_conv2d(nn.Module):
         out = out.reshape(out.shape[0], -1, out.shape[-2], out.shape[-1])
         return out
     
-    def forward(self, xx):
-        xx = self.unfold(xx)
-        xx, stds = self.transform(xx)
-        out = self.conv2d(xx)
+    def forward(self, x):
+        x = self.unfold(x)
+        x, stds = self.transform(x)
+        out = self.conv2d(x)
         if self.activation:
             out = F.leaky_relu(out)
         out = self.inverse_transform(out, stds)
@@ -90,14 +94,14 @@ class mag_deconv2d(nn.Module):
         self.conv2d = mag_conv2d(input_channels = input_channels, output_channels = output_channels, kernel_size = 4, um_dim = 2,
                              activation = True, stride = 1, deconv = True)
     
-    def pad(self, xx):
-        pad_xx = torch.zeros(xx.shape[0], xx.shape[1], xx.shape[2]*2, xx.shape[3]*2)
-        pad_xx[:,:,::2,::2].copy_(xx)
-        pad_xx = F.pad(pad_xx, (1,2,1,2), mode='replicate')
-        return pad_xx
+    def pad(self, x):
+        pad_x = torch.zeros(x.shape[0], x.shape[1], x.shape[2]*2, x.shape[3]*2)
+        pad_x[:,:,::2,::2].copy_(x)
+        pad_x = F.pad(pad_x, (1,2,1,2), mode='replicate')
+        return pad_x
     
-    def forward(self, xx):
-        out = self.pad(xx).to(device)
+    def forward(self, x):
+        out = self.pad(x).to(device)
         return self.conv2d(out)
     
 # Magnitude Equivariant ResNet.   
@@ -112,13 +116,13 @@ class mag_resblock(nn.Module):
         if input_channels != hidden_dim:
             self.upscale = mag_conv2d(input_channels, hidden_dim, kernel_size, activation = False)
         
-    def forward(self, xx):
-        out = self.layer1(xx)
+    def forward(self, x):
+        out = self.layer1(x)
         
         if self.input_channels != self.hidden_dim:
-            out = self.layer2(out) + self.upscale(xx)
+            out = self.layer2(out) + self.upscale(x)
         else:
-            out = self.layer2(out) + xx
+            out = self.layer2(out) + x
         
         return out
 
@@ -132,8 +136,8 @@ class ResNet_Mag(nn.Module):
         layers += [mag_conv2d(512, output_channels, kernel_size = kernel_size, activation = False)]
         self.model = nn.Sequential(*layers)
              
-    def forward(self, xx):
-        out = self.model(xx)
+    def forward(self, x):
+        out = self.model(x)
         return out
 
 

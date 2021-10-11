@@ -1,4 +1,6 @@
-######################## Rotational Equivariant Neural Nets ########################
+"""
+Rotational Equivariant ResNet and U-net
+"""
 import os
 import torch
 import dill
@@ -20,6 +22,7 @@ class rot_resblock(torch.nn.Module):
                 ): 
         super(rot_resblock, self).__init__()
         
+        # Specify symmetry transformation
         r2_act = gspaces.Rot2dOnR2(N = N)
         feat_type_in = nn.FieldType(r2_act, input_channels*[r2_act.regular_repr])
         feat_type_hid = nn.FieldType(r2_act, hidden_dim*[r2_act.regular_repr])
@@ -45,13 +48,13 @@ class rot_resblock(torch.nn.Module):
         self.input_channels = input_channels
         self.hidden_dim = hidden_dim
         
-    def forward(self, xx):
-        out = self.layer1(xx)
+    def forward(self, x):
+        out = self.layer1(x)
         
         if self.input_channels != self.hidden_dim:
-            out = self.layer2(out) + self.upscale(xx)
+            out = self.layer2(out) + self.upscale(x)
         else:
-            out = self.layer2(out) + xx
+            out = self.layer2(out) + x
             
         return out
     
@@ -81,10 +84,10 @@ class ResNet_Rot(torch.nn.Module):
         layers += [nn.R2Conv(self.feat_type_hid_out, self.feat_type_out, kernel_size = kernel_size, padding = (kernel_size - 1)//2)]
         self.model = torch.nn.Sequential(*layers)
     
-    def forward(self, xx):
+    def forward(self, x):
         #BxCxHxW
-        xx = nn.GeometricTensor(xx, self.feat_type_in)
-        out = self.model(xx)
+        x = nn.GeometricTensor(x, self.feat_type_in)
+        out = self.model(x)
         return out.tensor
     
     
@@ -117,8 +120,8 @@ class rot_conv2d(torch.nn.Module):
                         nn.ReLU(feat_type_hid)
                     ) 
     
-    def forward(self, xx):
-        return self.layer(xx)
+    def forward(self, x):
+        return self.layer(x)
     
 class rot_deconv2d(torch.nn.Module):
     def __init__(self, input_channels, output_channels, N, last_deconv = False):
@@ -128,15 +131,15 @@ class rot_deconv2d(torch.nn.Module):
         r2_act = gspaces.Rot2dOnR2(N = N)
         self.feat_type = nn.FieldType(r2_act, input_channels*[r2_act.regular_repr])
         
-    def pad(self, xx):
-        new_xx = torch.zeros(xx.shape[0], xx.shape[1], xx.shape[2]*2 + 3, xx.shape[3]*2 + 3)
-        new_xx[:,:,:-3,:-3][:,:,::2,::2] = xx
-        new_xx[:,:,:-3,:-3][:,:,1::2,1::2] = xx
-        new_xx = nn.GeometricTensor(new_xx, self.feat_type)
-        return new_xx
+    def pad(self, x):
+        new_x = torch.zeros(x.shape[0], x.shape[1], x.shape[2]*2 + 3, x.shape[3]*2 + 3)
+        new_x[:,:,:-3,:-3][:,:,::2,::2] = x
+        new_x[:,:,:-3,:-3][:,:,1::2,1::2] = x
+        new_x = nn.GeometricTensor(new_x, self.feat_type)
+        return new_x
     
-    def forward(self, xx):
-        out = self.pad(xx).to(device)
+    def forward(self, x):
+        out = self.pad(x).to(device)
         return self.conv2d(out)
     
 class Unet_Rot(torch.nn.Module):
