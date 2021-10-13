@@ -22,6 +22,8 @@ Recent work has shown deep learning can accelerate the prediction of physical dy
      
 3. evaluation: functions for computing RMSE and Energy Spectrum Errors.
 
+4. data_prep.py: preprocess turbulence data and generate training, validation, test and transformed test sets.
+
 
 ## Cite
 ```
