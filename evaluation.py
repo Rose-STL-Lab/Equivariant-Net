@@ -61,7 +61,7 @@ def tke2spectrum(tke):
     sp = np.fft.fft2(tke)
     sp = np.fft.fftshift(sp)
     sp = np.real(sp*np.conjugate(sp))
-    sp1D = radialProfile.azimuthalAverage(sp)
+    sp1D = azimuthalAverage(sp)
     return np.log10(sp1D)
  
 def spectrum_band(tensor):
