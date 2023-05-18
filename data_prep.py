@@ -129,7 +129,7 @@ def load_nc(path):
     w = torch.cat([u0, v0], dim = 1)
     w[w<-1000] = 0
     w[w>10000] = 0
-    return w
+    return w.double().float()
 
 
 atlantic = load_nc("atlantic.nc")
@@ -145,16 +145,16 @@ k = 0
 for t in range(500):
     for i in range(3):
         for j in range(3):
-            torch.save(atlantic[t:t+50,:,64*i:64*(i+1),64*j:64*(j+1)].float(), "ocean_train/sample_" + str(k) + ".pt")
+            torch.save(atlantic[t:t+50,:,64*i:64*(i+1),64*j:64*(j+1)].double().float(), "ocean_train/sample_" + str(k) + ".pt")
             k += 1
-            torch.save(indian[t:t+50,:,64*i:64*(i+1),64*j:64*(j+1)].float(), "ocean_train/sample_" + str(k) + ".pt")
+            torch.save(indian[t:t+50,:,64*i:64*(i+1),64*j:64*(j+1)].double().float(), "ocean_train/sample_" + str(k) + ".pt")
             k += 1
-            torch.save(north_pacific[t:t+50,:,64*i:64*(i+1),64*j:64*(j+1)].float(), "ocean_train/sample_" + str(k) + ".pt")
+            torch.save(north_pacific[t:t+50,:,64*i:64*(i+1),64*j:64*(j+1)].double().float().float(), "ocean_train/sample_" + str(k) + ".pt")
             k += 1
             
 k = 0
 for t in range(300):
     for i in range(3):
         for j in range(3):
-            torch.save(south_pacific_test[t:t+50,:,64*i:64*(i+1),64*j:64*(j+1)].float(), "ocean_test/sample_" + str(k) + ".pt")
+            torch.save(south_pacific_test[t:t+50,:,64*i:64*(i+1),64*j:64*(j+1)].double().float(), "ocean_test/sample_" + str(k) + ".pt")
             k += 1
