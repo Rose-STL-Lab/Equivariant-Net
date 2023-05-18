@@ -35,7 +35,7 @@ python data_prep.py
 ### Training
 - Train Equiv and Non-Equiv ResNets and Unets on RBC data and Ocean data.
 ```
-sh run_rbc.sh
+sh run.sh
 ```
 
 ## Cite
