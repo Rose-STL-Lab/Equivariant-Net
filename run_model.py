@@ -1,11 +1,13 @@
 import os
 import time
+import argparse
 import torch
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils import data
 import torch.nn.functional as F
+from evaluation import spectrum_band
 from models import ResNet, Unet, ResNet_UM, Unet_UM, ResNet_Mag, Unet_Mag, ResNet_Rot, Unet_Rot, ResNet_Scale, Unet_Scale
 import matplotlib.pyplot as plt
 from utils import train_epoch, eval_epoch, test_epoch, Dataset, get_lr, train_epoch_scale, eval_epoch_scale, test_epoch_scale, Dataset_scale
@@ -13,81 +15,176 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 ###### Hyperparameter ######
-save_name = "ResNet_UM"
-n_epochs = 1000
-learning_rate = 0.001 # 0.0005 for mag_equ resnet; 0.0001 for scale_equ resnet
-batch_size = 16
-input_length = 24
-train_output_length = 3 # 4 for all Unets
+
+parser = argparse.ArgumentParser(description='Deep Equivariant Dynamics Models')
+parser.add_argument('--dataset', type=str, required=False, default="RBC", help='RBC or Ocean')
+parser.add_argument('--kernel_size', type=int, required=False, default="3", help='convolution kernel size')
+parser.add_argument('--symmetry', type=str, required=False, default="UM", help='None, UM, Rot, Mag, Scale')
+parser.add_argument('--architecture', type=str, required=False, default="ResNet", help='ResNet or Unet')
+parser.add_argument('--output_length', type=int, required=False, default="4", help='number of prediction losses used for backpropagation')
+parser.add_argument('--input_length', type=int, required=False, default="24", help='input length')
+parser.add_argument('--batch_size', type=int, required=False, default="16", help='batch size')
+parser.add_argument('--num_epoch', type=int, required=False, default="1000", help='maximum number of epochs')
+parser.add_argument('--learning_rate', type=float, required=False, default="0.001", help='learning rate')
+parser.add_argument('--decay_rate', type=float, required=False, default="0.95", help='learning decay rate')
+args = parser.parse_args()
+
+symmetry = args.symmetry
+model_name = args.architecture + "_" + args.symmetry
+num_epoch = args.num_epoch
+learning_rate = args.learning_rate # 0.0005 for mag_equ resnet; 0.0001 for scale_equ resnet
+batch_size = args.batch_size
+input_length = args.input_length
+train_output_length = args.output_length # 4 for all Unets
 test_output_length = 10
-lr_decay = 0.9
+kernel_size = args.kernel_size
+lr_decay = args.decay_rate
 ###########################
 
 ########## Data ###########
-train_direc = ".../data_64/sample_"
-valid_direc = ".../data_64/sample_"
-test_direc = ".../data_64/sample_"
-train_indices = list(range(0, 6000))
-valid_indices = list(range(6000, 8000))
-test_indices = list(range(8000, 10000))
+if args.dataset == "RBC":
+    train_direc = "data_64/sample_"
+    valid_direc = "data_64/sample_"
+    train_indices = list(range(0, 6000))
+    valid_indices = list(range(6000, 8000))
 
-train_set = Dataset(train_indices, input_length, 30, train_output_length, train_direc, True)
-valid_set = Dataset(valid_indices, input_length, 30, train_output_length, valid_direc, True)
-test_set = Dataset(test_indices, input_length, 30, test_output_length, test_direc, True)
-# use Dataset_scale for scale equivariant models
-# train_set = Dataset_scale(train_indices, input_length, 30, output_length, train_direc)
-# valid_set = Dataset_scale(valid_indices, input_length, 30, output_length, train_direc)
-# test_set = Dataset_scale(test_indices, input_length, 40, 10, test_direc)
+    # test on future time steps
+    test_future_direc = "data_64/sample_"
+    test_future_indices = list(range(8000, 10000)) 
 
-train_loader = data.DataLoader(train_set, batch_size = batch_size, shuffle = True, num_workers = 8)
-valid_loader = data.DataLoader(valid_set, batch_size = batch_size, shuffle = False, num_workers = 8)
-test_loader = data.DataLoader(test_set, batch_size = batch_size, shuffle = False, num_workers = 8)
-###########################
+    # test on data applied with symmetry transformations 
+    test_domain_direc = "data_64/sample_" if args.symmetry == "None" else "data_" + symmetry.lower() + "/sample_" 
+    print(test_domain_direc)
+    test_domain_indices = list(range(8000, 10000)) 
+    
+elif args.dataset == "Ocean":
+    train_direc = "ocean_train/sample_"
+    valid_direc = "ocean_train/sample_"
+    train_indices = list(range(0, 8000))
+    valid_indices = list(range(8000, 10000))
 
-### Model ###
-model = nn.DataParallel(ResNet_UM(input_channels = input_length*2, output_channels = 2, kernel_size = 3).to(device))
-#model = nn.DataParallel(Unet_Rot(input_frames = input_length, output_frames = 1, kernel_size = 3, N = 8).to(device))
-#model = nn.DataParallel(ResNet_Scale(input_channels = input_length*2, output_channels = 2, kernel_size = 3).to(device))
+    # test on future time steps
+    test_future_direc = "ocean_train/sample_"
+    test_future_indices = list(range(10000, 12000)) 
+
+    # test on data from different domain
+    test_domain_direc = "ocean_test/sample_"
+    test_domain_indices = list(range(0, 2000)) 
+    
+else:
+    print("Invalid dataset name entered!")
+
+if symmetry != "Scale":
+    train_set = Dataset(train_indices, input_length, 30, train_output_length, train_direc, True)
+    valid_set = Dataset(valid_indices, input_length, 30, train_output_length, valid_direc, True)
+    test_future_set = Dataset(test_future_indices, input_length, 30, test_output_length, test_future_direc, True)
+    test_domain_set = Dataset(test_domain_indices, input_length, 30, test_output_length, test_domain_direc, True)
+else:
+    # use Dataset_scale for scale equivariant models
+    train_set = Dataset_scale(train_indices, input_length, 30, train_output_length, train_direc)
+    valid_set = Dataset_scale(valid_indices, input_length, 30, train_output_length, train_direc)
+    test_future_set = Dataset_scale(test_future_indices, input_length, 30, test_output_length, test_future_direc)
+    test_domain_set = Dataset_scale(test_domain_indices, input_length, 30, test_output_length, test_domain_direc)
+
+train_loader = data.DataLoader(train_set, batch_size = batch_size, shuffle = True, num_workers = 2)
+valid_loader = data.DataLoader(valid_set, batch_size = batch_size, shuffle = False, num_workers = 2)
+test_future_loader = data.DataLoader(test_future_set, batch_size = batch_size, shuffle = False, num_workers = 2)
+test_domain_loader = data.DataLoader(test_domain_set, batch_size = batch_size, shuffle = False, num_workers = 2)
+
+
+
+save_name = "RBC_model{}_bz{}_inp{}_pred{}_lr{}_decay{}_kernel{}".format(model_name,
+                                                                         batch_size,
+                                                                         input_length,
+                                                                         train_output_length,
+                                                                         learning_rate,
+                                                                         lr_decay,
+                                                                         kernel_size)
+                                                                                     
+print(save_name)
+####### Select Model #######
+if model_name == "ResNet_UM":
+    model = nn.DataParallel(ResNet_UM(input_channels = input_length*2, output_channels = 2, kernel_size = kernel_size).to(device))
+elif model_name == "Unet_UM":
+    model = nn.DataParallel(Unet_UM(input_channels = input_length*2, output_channels = 2, kernel_size = kernel_size).to(device))
+elif model_name == "ResNet_Rot":
+    model = nn.DataParallel(ResNet_Rot(input_frames = input_length, output_frames = 1, kernel_size = kernel_size, N = 8).to(device))
+elif model_name == "Unet_Rot":
+    model = nn.DataParallel(Unet_Rot(input_frames = input_length, output_frames = 1, kernel_size = kernel_size, N = 8).to(device))
+elif model_name == "ResNet_Mag":
+    model = nn.DataParallel(ResNet_Mag(input_channels = input_length*2, output_channels = 2, kernel_size = kernel_size).to(device))
+elif model_name == "Unet_Mag":  
+    model = nn.DataParallel(Unet_Mag(input_channels = input_length*2, output_channels = 2, kernel_size = kernel_size).to(device))
+elif model_name == "ResNet_Scale":
+    model = nn.DataParallel(ResNet_Scale(input_channels = input_length*2, output_channels = 2, kernel_size = kernel_size).to(device))
+elif model_name == "Unet_Scale":  
+    model = nn.DataParallel(Unet_Scale(input_channels = input_length*2, output_channels = 2, kernel_size = kernel_size).to(device))
+elif model_name == "ResNet_None":
+    model = nn.DataParallel(ResNet(input_channels = input_length*2, output_channels = 2, kernel_size = kernel_size).to(device))
+elif model_name == "Unet_None":
+    model = nn.DataParallel(Unet(input_channels = input_length*2, output_channels = 2, kernel_size = kernel_size).to(device))
+else:
+    print("Invalid model name entered!")
+
 
 optimizer = torch.optim.Adam(model.parameters(), learning_rate,betas=(0.9, 0.999), weight_decay=4e-4)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size= 1, gamma=lr_decay)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=lr_decay)
 loss_fun = torch.nn.MSELoss()
 
+min_rmse = 1e6
+train_rmse = []
+valid_rmse = []
+test_rmse = []
 
-
-min_mse = 100
-train_mse = []
-valid_mse = []
-test_mse = []
-
-for i in range(n_epochs):
+for i in range(num_epoch):
     start = time.time()
-    scheduler.step()
+    
+    if symmetry != "Scale":
+        model.train()
+        train_rmse.append(train_epoch(train_loader, model, optimizer, loss_fun))
+        model.eval()
+        rmse, _, _ = eval_epoch(valid_loader, model, loss_fun)
+        valid_rmse.append(rmse)
+    else:
+        model.train()
+        train_rmse.append(train_epoch_scale(train_loader, model, optimizer, loss_fun))
+        model.eval()
+        rmse, _, _ = eval_epoch_scale(valid_loader, model, loss_fun)
+        valid_rmse.append(rmse)
 
-    model.train()
-    # use train_epoch_scale/eval_epoch_scale for training scale equivariant models
-    train_mse.append(train_epoch(train_loader, model, optimizer, loss_fun))
-    model.eval()
-    mse, _, _ = eval_epoch(valid_loader, model, loss_fun)
-    valid_mse.append(mse)
-
-    if valid_mse[-1] < min_mse:
-        min_mse = valid_mse[-1] 
+    if valid_rmse[-1] < min_rmse:
+        min_rmse = valid_rmse[-1] 
         best_model = model
-        torch.save(best_model, save_name + ".pth")
     end = time.time()
     
     # Early Stopping but train at least for 50 epochs
-    if (len(train_mse) > 50 and np.mean(valid_mse[-5:]) >= np.mean(valid_mse[-10:-5])):
+    if (len(train_rmse) > 50 and np.mean(valid_rmse[-5:]) >= np.mean(valid_rmse[-10:-5])):
             break
-    print(i+1,train_mse[-1], valid_mse[-1], round((end-start)/60,5), format(get_lr(optimizer), "5.2e"))
+    print("Epoch {} | T: {:0.2f} | Train RMSE: {:0.3f} | Valid RMSE: {:0.3f}".format(i + 1, (end-start) / 60, train_rmse[-1], valid_rmse[-1]))
+    scheduler.step()
+    
+    
 
-test_mse, preds, trues, loss_curve = test_epoch(test_loader, best_model, loss_fun)
-torch.save({"preds": preds,
-            "trues": trues,
-            "test_mse":test_mse,
-            "loss_curve": loss_curve}, 
-            name + ".pt")
+if symmetry != "Scale":
+    test_future_rmse, test_future_preds, test_future_trues, test_future_loss_curve = test_epoch(test_future_loader, best_model, loss_fun)
+    test_domain_rmse, test_domain_preds, test_domain_trues, test_domain_loss_curve = test_epoch(test_domain_loader, best_model, loss_fun)
+else:
+    test_future_rmse, test_future_preds, test_future_trues, test_future_loss_curve = test_epoch_scale(test_future_loader, best_model, loss_fun)
+    test_domain_rmse, test_domain_preds, test_domain_trues, test_domain_loss_curve = test_epoch_scale(test_domain_loader, best_model, loss_fun)
+
+# Compute Energy Spectrum Errors
+test_future_ese = np.sqrt(np.mean((spectrum_band(test_future_preds) - spectrum_band(test_future_trues))**2))
+test_domain_ese = np.sqrt(np.mean((spectrum_band(test_domain_preds) - spectrum_band(test_domain_trues))**2))
+print("Model: {} | Symmetry: {} | Future RMSE: {:0.3f} | Future ESE: {:0.3f} | Domain RMSE: {:0.3f} | Domain ESE: {:0.3f} ".format(args.architecture, 
+                                                                                                                                   args.symmetry, 
+                                                                                                                                   test_future_rmse, 
+                                                                                                                                   test_future_ese, 
+                                                                                                                                   test_domain_rmse, 
+                                                                                                                                   test_domain_ese))
+
+torch.save({"test_future": [test_future_rmse, test_future_ese, test_future_preds[::10], test_future_trues[::10]],
+            "test_domain": [test_domain_rmse, test_domain_ese, test_domain_preds[::10], test_domain_trues[::10]]}, 
+            save_name + ".pt")
 
 
 

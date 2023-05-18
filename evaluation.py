@@ -71,15 +71,3 @@ def spectrum_band(tensor):
     spec = np.array([tke2spectrum(TKE(tensor[i])) for i in range(tensor.shape[0])])
     return np.mean(spec, axis = 0)
 
-
-
-spec_rmse = []
-rmse = []
-for i in range(1, 6):
-    direc = ".../ResNet_"
-    file = torch.load(direc + str(i) +"_time.pt")
-    preds = file["preds"]
-    trues = file["trues"]
-    spec_rmse.append(np.sqrt(np.mean((spectrum_band(preds) - spectrum_band(trues))**2)))
-    rmse.append(file["rmse"])
-print(np.mean(rmse), np.mean(spec_rmse))

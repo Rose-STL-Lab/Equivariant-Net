@@ -199,6 +199,7 @@ def train_epoch_scale(train_loader, model, optimizer, loss_function):
         for i in range(yy.shape[2]):
             blur_xx = blur_input(xx)
             im = model(blur_xx)
+            # print(xx.shape, im.shape)
             xx = torch.cat([xx[:, :, 1:], im.unsqueeze(2)], 2)
             loss += loss_function(im, yy[:,:,i])         
         train_mse.append(loss.item()/yy.shape[2]) 
