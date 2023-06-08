@@ -6,7 +6,7 @@ Recent work has shown deep learning can accelerate the prediction of physical dy
 
 ## Data Sets
 * [Rayleigh–Bénard convection DataSet](https://roselab1.ucsd.edu/seafile/d/7e7abe7c9c51489daa21/.) 2000 velocity fields (![formula](https://render.githubusercontent.com/render/math?math=2000\times2\times256\times1792))
-* [Ocean Current DataSet](https://resources.marine.copernicus.eu/?option=com_csw&view=details&product_id=GLOBAL_ANALYSIS_FORECAST_PHY_001_024)
+* [Ocean Current DataSet](https://data.marine.copernicus.eu/products)
 
 ## Requirements
 - To install requirements
