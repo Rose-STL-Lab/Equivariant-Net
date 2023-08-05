@@ -80,7 +80,7 @@ class mag_conv2d(nn.Module):
         x, stds = self.transform(x)
         out = self.conv2d(x)
         if self.activation:
-            out = F.leaky_relu(out)
+            out = F.relu(out)
         out = self.inverse_transform(out, stds)
         return out
 

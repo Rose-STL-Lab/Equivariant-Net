@@ -12,15 +12,14 @@ def conv(input_channels, output_channels, kernel_size, stride):
     return nn.Sequential(
         nn.Conv2d(input_channels, output_channels, kernel_size = kernel_size,
                   stride = stride, padding=(kernel_size - 1) // 2),
-        nn.BatchNorm2d(output_channels),
-        nn.LeakyReLU(0.1, inplace = True)
+        nn.ReLU()
     )
 
 def deconv(input_channels, output_channels):
     return nn.Sequential(
         nn.ConvTranspose2d(input_channels, output_channels, kernel_size = 4,
                            stride = 2, padding=1),
-        nn.LeakyReLU(0.1, inplace=True)
+        nn.ReLU()
     )
 
 class Unet(nn.Module):

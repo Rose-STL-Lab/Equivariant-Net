@@ -1,0 +1,10 @@
+numpy==1.24.2
+pandas==1.5.3
+pytorch==1.11.0
+python=3.9.16
+cudatoolkit==11.7.64
+pip==23.0.1
+conda==4.14.0
+opencv-python==4.7.0.72
+torchvision==0.15.2
+e2cnn
